@@ -4,24 +4,13 @@ const {ObjectId} = require('mongodb');
 
 const {app} = require("./../server");
 const {Todo} = require("./../models/todo");
+const {User} = require("./../models/user");
+const {todos, populateTodos, users, populateUsers} = require("./seed/seed");
 
-const todos = [{
-	_id: new ObjectId,
-	text: "First test todo"
-}, {
-	_id: new ObjectId,
-	text: "Second test todo",
-	completed: true,
-	completedAt: 333
-}]
+beforeEach(populateUsers);
+beforeEach(populateTodos);
 
-beforeEach((done) => {
-	Todo.remove({}).then(() => {
-		Todo.insertMany(todos);
-	}).then(() => done());
-});
-
-describe("POST / todos", () => {
+describe("POST /todos", () => {
 	it("should create a new todo", (done) => {
 		var text = "Test";
 
@@ -41,7 +30,7 @@ describe("POST / todos", () => {
 					expect(todos.length).toBe(1);
 					expect(todos[0].text).toBe(text);
 					done();
-				}).catch((e) => {done(e)});
+				}).catch((e) => done(e));
 			});
 	});
 
@@ -61,9 +50,9 @@ describe("POST / todos", () => {
 				done();
 			}).catch((e) => done(e));
 	});
-});
+}); //End of describe block
 
-describe("GET / todos", () => {
+describe("GET /todos", () => {
 	it("should get all todos", (done) => {
 		request(app)
 			.get("/todos")
@@ -75,7 +64,7 @@ describe("GET / todos", () => {
 	})
 })
 
-describe("GET / todos/:id", () => {
+describe("GET /todos/:id", () => {
 	it("should return todo doc", (done) => {
 		request(app)
 		.get(`/todos/${todos[0]._id.toHexString()}`)
@@ -102,7 +91,7 @@ describe("GET / todos/:id", () => {
 		.expect(404)
 		.end(done);
 	});
-});
+}); //End of describe block
 
 describe("DELETE /todos/:id", () => {
 	it("should remove a todo", (done) => {
@@ -181,4 +170,77 @@ describe("PATCH /todos/:id", () => {
 			})
 			.end(done)
 	})
-})
+}) //End of describe block
+
+describe("GET /users/me", () =>{
+	it("should return user if authenticated", (done) => {
+		request(app)
+			.get("/users/me")
+			.set("x-auth", users[0].tokens[0].token)
+			.expect(200)
+			.expect((res) => {
+				expect(res.body._id).toBe(users[0]._id.toHexString());
+				expect(res.body.email).toBe(users[0].email);
+			})
+			.end(done);
+	});
+
+	it("should return 401 if not authenticated", (done) => {
+		request(app)
+			.get("/users/me")
+			.expect(401)
+			.expect((res) => {
+				expect(res.body).toEqual({});
+			})
+			.end(done);
+	});
+}) // End of describe block
+
+describe("POST /users/me", () => {
+	it("should create a user", (done) => {
+		var email = "example@example.com";
+		var password = "123abc!!";
+
+		request(app)
+			.post("/users")
+			.send({email, password})
+			.expect(200)
+			.expect((res) => {
+				expect(res.headers["x-auth"]).toBeDefined();
+				expect(res.body._id).toBeDefined();
+				expect(res.body.email).toBe(email);
+			})
+			.end((err) => {
+				if(err) {
+					return done(err);
+				}
+
+				User.findOne({email}).then((user) => {
+					expect(user).toBeDefined();
+					expect(user.password).not.toBe(password);
+					done();
+				});
+			});
+	});
+	
+	it("should return validation error if request invalid", (done) => {
+		request(app)
+			.post("/users")
+			.send({
+				email: "fassfsf@gmail.com",
+				password: "132"
+			})
+			.expect(400)
+			.end(done);
+	});
+
+	it("should not create user if email in use", (done) => {
+		var email = "user@example.com";
+
+		request(app)
+			.post("/users")
+			.send({email})
+			.expect(400)
+			.end(done);
+	});
+}) //End of describe block
