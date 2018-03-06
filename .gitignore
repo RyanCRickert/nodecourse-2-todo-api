@@ -1,3 +1,4 @@
 node_modules/
 dbSetup.txt
 mongo.png
+server/config/config.json
